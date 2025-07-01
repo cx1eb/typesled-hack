@@ -1,111 +1,62 @@
 # Type-S UnderGlow — 'Fixing' the App with Python 🐒✨
-> **TL;DR:** The official iOS/Android app locks a fully-RGB LED strip to 49 preset colours and a handful of animations.  
-> I pulled the APK apart, found the BLE protocol + TEA-128 key, and wrote a Python driver that finally unlocks any colour (yes, even red/blue strobes).
+> **TL;DR:** The official iOS/Android app limits your RGB underglow to 49 preset colors and a few built-in effects.  
+> I reverse-engineered the Android app, found the BLE UUIDs, TEA-128 encryption key, and packet format, then wrote a Python script to send custom packets—only to discover the lights only respond to preset indexes. Likely, firmware is locked to accept only predefined color commands.
 
 ---
 
 ## Why bother?
 
 | Problem | Reality |
-|---------|---------|
-| **App is cripple-ware** | 48-colour wheel ('0-48', so 49 slots total), zero custom RGB, no desktop client. |
-| **Photo match is fake** | It samples a pixel then rounds to the nearest preset colour. |
-| **Hardware can do millions** | The strip is plain 5050 SMD RGB; limitations are 100 % software (plus a sprinkle of MCU firmware). |
-| **Company ghosts users** | Reviews, emails, tweets — all ignored. |
+|--------|---------|
+| **App is cripple-ware** | 49 preset colors (0–48), no true RGB values, no desktop support. |
+| **Photo color match is fake** | It selects the closest preset, not the actual pixel color. |
+| **Hardware is capable** | Uses 5050 SMD RGB strips, but heavily restricted by software (and possibly firmware). |
+| **Company is unresponsive** | Emails, reviews, tweets — no replies or support. |
 
 ---
 
-## What I did (high level)
+## What I did (overview)
 
-| # | Step | Key Finds |
-|---|------|-----------|
-| 1 | Decompile APK via 'jadx' | Full Java source, inc. BLE service class |
-| 2 | Locate BLE UUIDs | 'WRITE_UUID 8D96B001…' & 'NOTIFY_UUID 8D96B002…' |
-| 3 | Reverse protocol | 20-byte command frame, rolling checksum, TEA-128 encryption |
-| 4 | Extract crypto | Static TEA key 'adf78er3haf88ad0' (same on every hub) |
-| 5 | Write driver | Python 3 + 'Bleak' to scan, auth, and send commands |
-
----
-
-## Quick start
-
-'''bash
-# 1) Pull deps
-python -m pip install bleak
-
-# 2) Run it — pass MAC(s) or let it auto-scan
-python types_underglow.py                    # scans for 'Smart Exterior Kit'
-python types_underglow.py 12:34:56:78:9A:BC  # explicit hub
-'''
-
-*Supports two hubs at once (front + rear). Add '--quiet' for no hex dumps.*
+| Step | Description | Result |
+|------|-------------|--------|
+| 1 | Decompiled the Android APK using `jadx` | Found BLE code, UUIDs, encryption |
+| 2 | Found BLE UUIDs | `WRITE_UUID` and `NOTIFY_UUID` |
+| 3 | Found static TEA key | `adf78er3haf88ad0` — same on all hubs |
+| 4 | Rebuilt command structure | 20-byte encrypted packets |
+| 5 | Wrote a Python BLE controller | Using Bleak to scan, authenticate, and send commands |
+| 6 | Tested raw RGB values | Strip ignores all except official color indexes — likely firmware-locked |
 
 ---
 
-## How the script works
+## How it works
 
-1. **TEA helpers**  
-   'tea_enc()' / 'tea_dec()' wrap Tiny-Encryption-Algorithm in 8-byte ECB blocks (exact match to the app).
+The Python script uses:
+- `Bleak` for BLE communication
+- TEA-128 encryption (matching app logic)
+- A rolling checksum and 20-byte command frames
+- A simple authentication flow (sends `MONKEY` as the password)
 
-2. **Frame builder**  
-   '_frame(cmd_id, body)' stuffs your payload into a 20-byte template:  
-
-0 0x45 # constant header 'E'
-1 seq-num # rolls 0-255
-2 cmd-id # 0x00 colour, 0x01 login, etc.
-3-18 body
-19 checksum # sum of bytes 1-18
-
-…then TEA-encrypts the lot.
-
-3. **Authentication**  
-'authenticate()' subscribes to 'NOTIFY_UUID', sends a password frame (cmd 0x01, body 'MONKEY'), waits for a 0x01/0x12 response. 'dec[3]==0x00' ⇒ pass accepted.
-
-4. **Colour commands**  
-*Static colour* (cmd 0x00, mode 0): '[mode, bri, speed, index, len]'  
-'''python
-colour_pkt(32, 100)   # bright blue
-colour_pkt(0, 0)      # off
-'''
-*Closest-match helper* 'rgb_to_closest_color(r,g,b)' converts arbitrary RGB → nearest preset using the same HSV maths the apk uses.
-
-5. **Drive loop**  
-'drive(mac, tag)' connects → login → runs a rainbow test → lights off.
+Only officially recognized color index values (0–48) trigger color changes, even though the protocol allows sending raw RGB. This strongly suggests the LED controller firmware ignores anything outside its hardcoded lookup.
 
 ---
 
-## Extending it
+## Limitations Discovered
 
-* **True 24-bit RGB** — MCU accepts 'mode 1' raw-RGB: '[1, bri, R, G, B]'. Skeleton ('rgb_pkt') is already in the code; uncomment and party.
-* **Custom animations** — app motions are cmd 0x05 with different bodies. Sniff them over BLE, clone, or craft new ones.
-* **More hubs** — shove MACs into a list and 'asyncio.gather' multiple 'drive()' calls.
-
----
-
-## Ethical & legal bits ⚖️
-
-* **ToS** — yes, this breaks the Type-S EULA.  
-* **Ownership** — hardware is mine; no DRM bypass.  
-* **Risk** — a cease-and-desist is possible; publish at your own comfort level.  
-* **Safety** — flashing emergency red/blue on public roads is illegal in NZ.
+While the hardware (5050 SMD RGB) supports full-color output, actual color setting is limited to the preconfigured list used in the app. Attempts to send raw RGB packets (using mode `0x01`) are accepted but **ignored** by the hub.  
+All confirmed successful color changes only occurred when sending predefined indexes (`mode 0x00`, `color index 0–48`). This shows the **firmware is likely rejecting anything not in its preset list**, despite being capable of more.
 
 ---
 
-## FAQ
+## Ethical & Legal Notes ⚖️
 
-> **Will this brick my controller?**  
-> Nope. Protocol mirrors the official app; worst case pull the fuse and reboot.
-
-> **Can I run this without Python?**  
-> Not yet. A C# + WinBTLE port would be trivial. PRs welcome!
-
-> **Why only 49 colours in the stock app?**  
-> Marketing simplicity. The MCU clearly supports raw RGB; the devs just nerfed the UI.
+- This technically violates the Type-S app's Terms of Service.
+- However, no DRM or copy protection was bypassed.
+- All data was retrieved from a legally obtained APK, used on hardware I own.
+- I’m publishing this for educational and personal use; if you replicate this, do so responsibly.
 
 ---
 
-## Credits
+## Final Thoughts
 
-* **Bleak** — cross-platform Bluetooth awesomeness.  
-* Tiny-TEA ref impl — Markku-Joshi.  
-* Type-S™ / Winplus® — not affiliated, please don’t sue.
+This was a fun deep-dive into how much artificial limitation is placed on consumer hardware. The potential is there, but unless Type-S updates the firmware (or someone finds a way to flash it), we're stuck with 49 canned colors.  
+Still, understanding and exploring how it works was 100% worth it.
