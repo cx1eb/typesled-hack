@@ -40,6 +40,28 @@ Only officially recognized color index values (0–48) trigger color changes, ev
 
 ---
 
+---
+
+## Reversing the Encryption 🔓
+
+The Type-S app encrypts all BLE commands using **TEA (Tiny Encryption Algorithm)**. Inside the APK, we found a 'Tea.java' class that handled both encryption and decryption, with a hardcoded 16-byte key:
+
+```
+private static byte[] g = {97, 100, 102, 55, 56, 101, 114, 51, 104, 97, 102, 56, 56, 97, 100, 48};
+// => b"adf78er3haf88ad0"
+```
+
+The code uses **TEA-128** in ECB mode, operating on 8-byte blocks for both 'tea_encrypt()' and 'tea_decrypt()'. Each command sent to the hub is a 20-byte frame, padded and encrypted with this static key. Decryption uses a 32-round loop and a delta constant of '0x9E3779B9', confirming it's a textbook TEA implementation.
+
+After porting this logic to Python using 'struct' and masking to simulate 32-bit wrapping, we could successfully encrypt and decrypt packets exactly as the app does. No dynamic keys, no pairing logic — just symmetric crypto with a shared hardcoded key.
+
+Once reversed, we built helper functions like 'tea_enc()' and 'tea_dec()' to support constructing and interpreting the hub’s protocol.
+
+> ⚠️ **Note:** This key appears to be the same across all Type-S hubs. There is no per-device authentication.
+
+
+---
+
 ## Limitations Discovered
 
 While the hardware (5050 SMD RGB) supports full-color output, actual color setting is limited to the preconfigured list used in the app. Attempts to send raw RGB packets (using mode `0x01`) are accepted but **ignored** by the hub.  
