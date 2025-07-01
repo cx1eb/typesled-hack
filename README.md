@@ -11,7 +11,7 @@
 | **App is cripple-ware** | 49 preset colors (0–48), no true RGB values, no desktop support. |
 | **Photo color match is fake** | It selects the closest preset, not the actual pixel color. |
 | **Hardware is capable** | Uses 5050 SMD RGB strips, but heavily restricted by software (and possibly firmware). |
-| **Company is unresponsive** | Emails, reviews, tweets — no replies or support. |
+| **Company is unresponsive** | Emails, Reviews, Instagram — no replies. |
 
 ---
 
