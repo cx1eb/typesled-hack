@@ -82,3 +82,6 @@ All confirmed successful color changes only occurred when sending predefined ind
 
 This was a fun deep-dive into how much artificial limitation is placed on consumer hardware. The potential is there, but unless Type-S updates the firmware (or someone finds a way to flash it), we're stuck with 49 canned colors.  
 Still, understanding and exploring how it works was 100% worth it.
+
+The main reason I started this project was to get **proper red/blue flashing**, something the stock app likely intentionally avoids. Even with all the limitations, I was able to alternate between red and blue by controlling each hub independently—flashing for a cool looking alternating strobe effect. It’s not perfect, but it works exactly how I wanted.
+
