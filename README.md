@@ -69,6 +69,12 @@ All confirmed successful color changes only occurred when sending predefined ind
 
 ---
 
+## Cool lil thing I found
+
+If you hold down on the typesled sign in the app, it will unlock a hidden "advanced settings" menu ;)
+
+---
+
 ## Ethical & Legal Notes ⚖️
 
 - This technically violates the Type-S app's Terms of Service.
